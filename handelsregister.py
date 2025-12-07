@@ -47,8 +47,8 @@ def search(terms, register=''):
 
     for item in soup.select('[data-ri]'):
         yield {
-            'title': item.find(class_='marginLeft20').text,
-            'id': item.find(class_='fontWeightBold').text.strip(),
+            'title': item.select_one('.marginLeft20').text,
+            'id': item.select_one('.fontWeightBold').text.strip(),
         }
 
 
@@ -68,7 +68,7 @@ def get_xml(register, id):
         view_state = soup.select_one('input[name="javax.faces.ViewState"]')['value']
         action = soup.select_one('[action]')['action']
 
-        r2 = session.post(
+        r = session.post(
             f'https://www.handelsregister.de{action}',
             data={
                 'ergebnissForm': 'ergebnissForm',
@@ -77,8 +77,8 @@ def get_xml(register, id):
                 field: field,
             },
         )
-        r2.raise_for_status()
-        return r2.text
+        r.raise_for_status()
+        return r.text
 
 
 def get_parser():
