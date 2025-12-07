@@ -72,9 +72,19 @@ def get_context(session):
 
     return {
         'view_state': soup.select_one('input[name="javax.faces.ViewState"]')['value'],
+        'courts': {
+            option['value']: option.text.strip()
+            for option in soup.select(r'#form\:registergericht_input option')
+            if option['value']
+        },
         'rev_courts': {
             option.text.strip(): option['value']
             for option in soup.select(r'#form\:registergericht_input option')
+            if option['value']
+        },
+        'types': {
+            option['value']: option.text.strip()
+            for option in soup.select(r'#form\:rechtsform_input option')
             if option['value']
         },
     }
@@ -133,6 +143,15 @@ def get_xml(register, id):
         return r.text
 
 
+def get_list(key):
+    if key == 'registers':
+        return REGISTERS
+    else:
+        with Session() as session:
+            ctx = get_context(session)
+        return ctx[key]
+
+
 def get_parser():
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers(required=True)
@@ -146,6 +165,10 @@ def get_parser():
     parser_xml.add_argument('id')
     parser_xml.set_defaults(action='xml')
 
+    parser_list = subparsers.add_parser('list', help='get data for a specific ID')
+    parser_list.add_argument('key', choices=['registers', 'courts', 'types'])
+    parser_list.set_defaults(action='list')
+
     return parser
 
 
@@ -155,5 +178,8 @@ if __name__ == '__main__':
         for item in search(args.terms):
             print(item['title'])
             print('\t', item['court'], item['reg'], item['id'])
-    else:
+    elif args.action == 'xml':
         print(get_xml(args.register, args.id))
+    else:
+        for key, value in get_list(args.key).items():
+            print(f'{key}\t{value}')
