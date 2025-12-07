@@ -33,7 +33,9 @@ class Session(requests.Session):
         retries = 2
         while True:
             try:
-                return super().request(*args, **kwargs)
+                r = super().request(*args, **kwargs)
+                r.raise_for_status()
+                return r
             except requests.exceptions.ConnectionError:
                 if retries > 0:
                     retries -= 1
@@ -44,7 +46,6 @@ class Session(requests.Session):
 
 def fetch_view_state(session):
     r = session.get('https://www.handelsregister.de/rp_web/erweitertesuche/welcome.xhtml')
-    r.raise_for_status()
     soup = BeautifulSoup(r.content, 'html.parser')
     return soup.find('input', {'name': 'javax.faces.ViewState'})['value']
 
@@ -62,7 +63,6 @@ def _search(session, data):
             **data,
         },
     )
-    r.raise_for_status()
     return BeautifulSoup(r.content, features='html.parser')
 
 
@@ -106,7 +106,6 @@ def get_xml(register, id):
                 field: field,
             },
         )
-        r.raise_for_status()
         return r.text
 
 
