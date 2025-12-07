@@ -117,7 +117,6 @@ def _search(session, query):
         'form:btnSuche': '',
         'javax.faces.ViewState': ctx['view_state'],
         'form:schlagwortOptionen': 1,
-        'form:aenlichLautendeSchlagwoerterBoolChkbox_input': 'on',
         'form:ergebnisseProSeite_input': 100,
         **query,
     })
