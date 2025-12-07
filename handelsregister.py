@@ -14,13 +14,21 @@ REGISTERS = {
 }
 
 
+def fetch_view_state(session):
+    r = session.get('https://www.handelsregister.de/rp_web/erweitertesuche/welcome.xhtml')
+    r.raise_for_status()
+    soup = BeautifulSoup(r.content, 'html.parser')
+    return soup.find('input', {'name': 'javax.faces.ViewState'})['value']
+
+
 def _search(session, data):
+    view_state = fetch_view_state(session)
     r = session.post(
         'https://www.handelsregister.de/rp_web/erweitertesuche/welcome.xhtml',
         data={
             'form': 'form',
             'form:btnSuche': '',
-            'javax.faces.ViewState': 'stateless',
+            'javax.faces.ViewState': view_state,
             'form:schlagwortOptionen': 1,
             **data,
         },
