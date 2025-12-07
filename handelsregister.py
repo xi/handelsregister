@@ -15,7 +15,7 @@ REGISTERS = {
 }
 
 
-def parse_id(s):
+def parse_id(s, ctx):
     parts = s.strip().split()
     for i in range(len(parts) - 2, 0, -1):
         reg = parts[i]
@@ -24,7 +24,7 @@ def parse_id(s):
             if 'früher' in tail:
                 tail = tail[:tail.index('früher')]
             return {
-                'court': ' '.join(parts[1:i]),
+                'court': ctx['rev_courts'][' '.join(parts[1:i])],
                 'reg': reg,
                 'id': ' '.join(tail),
             }
@@ -42,11 +42,11 @@ def parse_si_field(item):
             return m[0]
 
 
-def parse_item(item):
+def parse_item(item, ctx):
     return {
         'title': item.select_one('.marginLeft20').text,
         'si_field': parse_si_field(item),
-        **parse_id(item.select_one('.fontWeightBold').text)
+        **parse_id(item.select_one('.fontWeightBold').text, ctx)
     }
 
 
@@ -72,6 +72,11 @@ def get_context(session):
 
     return {
         'view_state': soup.select_one('input[name="javax.faces.ViewState"]')['value'],
+        'rev_courts': {
+            option.text.strip(): option['value']
+            for option in soup.select(r'#form\:registergericht_input option')
+            if option['value']
+        },
     }
 
 
@@ -94,7 +99,7 @@ def _search(session, query):
         'action': soup.select_one('[action]')['action'],
         'view_state': soup.select_one('input[name="javax.faces.ViewState"]')['value'],
         'truncated': bool(soup.select_one(r'#ergebnissForm\:ergebnisseAnzahl_label')),
-        'items': [parse_item(item) for item in soup.select('[data-ri]')],
+        'items': [parse_item(item, ctx) for item in soup.select('[data-ri]')],
     }
 
 
