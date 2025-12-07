@@ -20,10 +20,13 @@ def parse_id(s):
     for i in range(len(parts) - 2, 0, -1):
         reg = parts[i]
         if reg in REGISTERS:
+            tail = parts[i + 1:]
+            if 'früher' in tail:
+                tail = tail[:tail.index('früher')]
             return {
                 'court': ' '.join(parts[:i]),
                 'reg': reg,
-                'id': ' '.join(parts[i + 1:]),
+                'id': ' '.join(tail),
             }
     raise ValueError(s)
 
