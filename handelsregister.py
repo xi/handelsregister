@@ -24,11 +24,30 @@ def parse_id(s):
             if 'früher' in tail:
                 tail = tail[:tail.index('früher')]
             return {
-                'court': ' '.join(parts[:i]),
+                'court': ' '.join(parts[1:i]),
                 'reg': reg,
                 'id': ' '.join(tail),
             }
     raise ValueError(s)
+
+
+def parse_si_field(item):
+    si_element = item.select_one('[onclick*="Dokumentart.SI"]')
+    if si_element:
+        m = re.search(
+            r"ergebnissForm:selectedSuchErgebnisFormTable:[^']*",
+            si_element['onclick'],
+        )
+        if m:
+            return m[0]
+
+
+def parse_item(item):
+    return {
+        'title': item.select_one('.marginLeft20').text,
+        'si_field': parse_si_field(item),
+        **parse_id(item.select_one('.fontWeightBold').text)
+    }
 
 
 class Session(requests.Session):
@@ -47,64 +66,61 @@ class Session(requests.Session):
                     raise
 
 
-def fetch_view_state(session):
+def get_context(session):
     r = session.get('https://www.handelsregister.de/rp_web/erweitertesuche/welcome.xhtml')
     soup = BeautifulSoup(r.content, 'html.parser')
-    return soup.find('input', {'name': 'javax.faces.ViewState'})['value']
+
+    return {
+        'view_state': soup.select_one('input[name="javax.faces.ViewState"]')['value'],
+    }
 
 
-def _search(session, data):
-    view_state = fetch_view_state(session)
+def _search(session, query):
+    ctx = get_context(session)
     r = session.post(
         'https://www.handelsregister.de/rp_web/erweitertesuche/welcome.xhtml',
         data={
             'form': 'form',
             'form:btnSuche': '',
-            'javax.faces.ViewState': view_state,
+            'javax.faces.ViewState': ctx['view_state'],
             'form:schlagwortOptionen': 1,
+            'form:aenlichLautendeSchlagwoerterBoolChkbox_input': 'on',
             'form:ergebnisseProSeite_input': 100,
-            **data,
+            **query,
         },
     )
-    return BeautifulSoup(r.content, features='html.parser')
+    soup = BeautifulSoup(r.content, features='html.parser')
+    return {
+        'action': soup.select_one('[action]')['action'],
+        'view_state': soup.select_one('input[name="javax.faces.ViewState"]')['value'],
+        'truncated': bool(soup.select_one(r'#ergebnissForm\:ergebnisseAnzahl_label')),
+        'items': [parse_item(item) for item in soup.select('[data-ri]')],
+    }
 
 
 def search(terms, register=''):
+    query = {
+        'form:schlagwoerter': terms,
+        'form:registerArt_input': register,
+    }
     with Session() as session:
-        soup = _search(session, {
-            'form:schlagwoerter': terms,
-            'form:aenlichLautendeSchlagwoerterBoolChkbox_input': 'on',
-            'form:registerArt_input': register,
-        })
-
-    for item in soup.select('[data-ri]'):
-        yield {
-            'title': item.select_one('.marginLeft20').text,
-            **parse_id(item.select_one('.fontWeightBold').text),
-        }
+        data = _search(session, query)
+    return data['items']
 
 
 def get_xml(register, id):
     with Session() as session:
-        soup = _search(session, {
-            'form:registerNummer': id,
+        data = _search(session, {
             'form:registerArt_input': register,
+            'form:registerNummer': id,
         })
-
-        link = soup.select_one('[onclick*="Dokumentart.SI"]')
-        field = re.search(
-            r"ergebnissForm:selectedSuchErgebnisFormTable:[^']*",
-            link['onclick'],
-        )[0]
-
-        view_state = soup.select_one('input[name="javax.faces.ViewState"]')['value']
-        action = soup.select_one('[action]')['action']
+        field = data['items'][0]['si_field']
 
         r = session.post(
-            f'https://www.handelsregister.de{action}',
+            f'https://www.handelsregister.de{data["action"]}',
             data={
                 'ergebnissForm': 'ergebnissForm',
-                'javax.faces.ViewState': view_state,
+                'javax.faces.ViewState': data['view_state'],
                 'property': 'Global.Dokumentart.SI',
                 field: field,
             },
