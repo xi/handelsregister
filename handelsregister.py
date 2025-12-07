@@ -4,15 +4,6 @@ import re
 import requests
 from bs4 import BeautifulSoup
 
-SEARCH_DEFAULTS = {
-    'suchTyp': 'n',
-    'form': 'form',
-    'form:btnSuche': 'form:btnSuche',
-    'javax.faces.partial.ajax': 'true',
-    'javax.faces.partial.execute': '@all',
-    'javax.faces.ViewState': 'stateless',
-}
-
 REGISTERS = {
     'HRA': 'Handelsregister Abteilung A',
     'HRB': 'Handelsregister Abteilung B',
@@ -23,21 +14,29 @@ REGISTERS = {
 }
 
 
+def _search(session, data):
+    r = session.post(
+        'https://www.handelsregister.de/rp_web/erweitertesuche/welcome.xhtml',
+        data={
+            'form': 'form',
+            'form:btnSuche': '',
+            'javax.faces.ViewState': 'stateless',
+            'form:schlagwortOptionen': 1,
+            **data,
+        },
+    )
+    r.raise_for_status()
+    return BeautifulSoup(r.content, features='html.parser')
+
+
 def search(terms, register=''):
     with requests.Session() as session:
-        r = session.post(
-            'https://www.handelsregister.de/rp_web/erweitertesuche.xhtml',
-            data={
-                **SEARCH_DEFAULTS,
-                'form:registerArt_input': register,
-                'form:schlagwoerter': terms,
-                'form:schlagwortOptionen': 1,
-                'form:aenlichLautendeSchlagwoerterBoolChkbox_input': 'on',
-            }
-        )
-        r.raise_for_status()
+        soup = _search(session, {
+            'form:schlagwoerter': terms,
+            'form:aenlichLautendeSchlagwoerterBoolChkbox_input': 'on',
+            'form:registerArt_input': register,
+        })
 
-    soup = BeautifulSoup(r.content, features='html.parser')
     for item in soup.select('[data-ri]'):
         yield {
             'title': item.find(class_='marginLeft20').text,
@@ -47,26 +46,19 @@ def search(terms, register=''):
 
 def get_xml(register, id):
     with requests.Session() as session:
-        r = session.post(
-            'https://www.handelsregister.de/rp_web/erweitertesuche.xhtml',
-            data={
-                **SEARCH_DEFAULTS,
-                'form:registerArt_input': register,
-                'form:registerNummer': id,
-            },
-        )
-        r.raise_for_status()
+        soup = _search(session, {
+            'form:registerNummer': id,
+            'form:registerArt_input': register,
+        })
 
-        field = None
-        for x in re.findall(r'PrimeFaces.addSubmitParam\([^)]*', r.text):
-            if 'Global.Dokumentart.SI' in x:
-                field = re.search(r"ergebnissForm:selectedSuchErgebnisFormTable:[^']*", x)[0]
-                break
-        if not field:
-            raise ValueError
+        link = soup.select_one('[onclick*="Dokumentart.SI"]')
+        field = re.search(
+            r"ergebnissForm:selectedSuchErgebnisFormTable:[^']*",
+            link['onclick'],
+        )[0]
 
-        view_state = re.search(r'<update id="j_id1:javax.faces.ViewState:0"><!\[CDATA\[([-0-9]*:[-0-9]*)\]\]></update>', r.text)[1]
-        action = re.search('action="([^"]*)"', r.text)[1]
+        view_state = soup.select_one('input[name="javax.faces.ViewState"]')['value']
+        action = soup.select_one('[action]')['action']
 
         r2 = session.post(
             f'https://www.handelsregister.de{action}',
