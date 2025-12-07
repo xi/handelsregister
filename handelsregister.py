@@ -1,5 +1,6 @@
 import argparse
 import re
+import time
 
 import requests
 from bs4 import BeautifulSoup
@@ -27,6 +28,20 @@ def parse_id(s):
     raise ValueError(s)
 
 
+class Session(requests.Session):
+    def request(self, *args, **kwargs):
+        retries = 2
+        while True:
+            try:
+                return super().request(*args, **kwargs)
+            except requests.exceptions.ConnectionError:
+                if retries > 0:
+                    retries -= 1
+                    time.sleep(1)
+                else:
+                    raise
+
+
 def fetch_view_state(session):
     r = session.get('https://www.handelsregister.de/rp_web/erweitertesuche/welcome.xhtml')
     r.raise_for_status()
@@ -52,7 +67,7 @@ def _search(session, data):
 
 
 def search(terms, register=''):
-    with requests.Session() as session:
+    with Session() as session:
         soup = _search(session, {
             'form:schlagwoerter': terms,
             'form:aenlichLautendeSchlagwoerterBoolChkbox_input': 'on',
@@ -67,7 +82,7 @@ def search(terms, register=''):
 
 
 def get_xml(register, id):
-    with requests.Session() as session:
+    with Session() as session:
         soup = _search(session, {
             'form:registerNummer': id,
             'form:registerArt_input': register,
