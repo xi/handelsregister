@@ -123,11 +123,12 @@ def search(terms, register=''):
     return data['items']
 
 
-def get_xml(register, id):
+def get_xml(register, id, court):
     with Session() as session:
         data = _search(session, {
             'form:registerArt_input': register,
             'form:registerNummer': id,
+            'form:registergericht_input': court,
         })
         field = data['items'][0]['si_field']
 
@@ -163,6 +164,7 @@ def get_parser():
     parser_xml = subparsers.add_parser('xml', help='get data for a specific ID')
     parser_xml.add_argument('register', choices=REGISTERS)
     parser_xml.add_argument('id')
+    parser_xml.add_argument('court')
     parser_xml.set_defaults(action='xml')
 
     parser_list = subparsers.add_parser('list', help='get data for a specific ID')
@@ -179,7 +181,7 @@ if __name__ == '__main__':
             print(item['title'])
             print('\t', item['court'], item['reg'], item['id'])
     elif args.action == 'xml':
-        print(get_xml(args.register, args.id))
+        print(get_xml(args.register, args.id, args.court))
     else:
         for key, value in get_list(args.key).items():
             print(f'{key}\t{value}')

@@ -20,5 +20,5 @@ Deshalb habe ich dieses Skript gebaut. Benutzung:
 
 ```
 python3 handelsregister.py search 'atos'  # search by keyword
-python3 handelsregister.py xml HRB 16686  # get structured data for a specific entry
+python3 handelsregister.py xml HRB 16686 M1202  # get structured data for a specific entry
 ```
