@@ -14,6 +14,19 @@ REGISTERS = {
 }
 
 
+def parse_id(s):
+    parts = s.strip().split()
+    for i in range(len(parts) - 2, 0, -1):
+        reg = parts[i]
+        if reg in REGISTERS:
+            return {
+                'court': ' '.join(parts[:i]),
+                'reg': reg,
+                'id': ' '.join(parts[i + 1:]),
+            }
+    raise ValueError(s)
+
+
 def fetch_view_state(session):
     r = session.get('https://www.handelsregister.de/rp_web/erweitertesuche/welcome.xhtml')
     r.raise_for_status()
@@ -48,7 +61,7 @@ def search(terms, register=''):
     for item in soup.select('[data-ri]'):
         yield {
             'title': item.select_one('.marginLeft20').text,
-            'id': item.select_one('.fontWeightBold').text.strip(),
+            **parse_id(item.select_one('.fontWeightBold').text),
         }
 
 
@@ -102,6 +115,6 @@ if __name__ == '__main__':
     if args.action == 'search':
         for item in search(args.terms):
             print(item['title'])
-            print('\t' + item['id'])
+            print('\t', item['court'], item['reg'], item['id'])
     else:
         print(get_xml(args.register, args.id))
