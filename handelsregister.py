@@ -70,11 +70,12 @@ def parse_item(item, ctx):
 
 
 class Session(requests.Session):
-    def request(self, *args, **kwargs):
+    def request(self, method, path, **kwargs):
+        url = f'https://www.handelsregister.de{path}'
         retries = 2
         while True:
             try:
-                r = super().request(*args, **kwargs)
+                r = super().request(method, url, **kwargs)
                 r.raise_for_status()
                 return r
             except requests.exceptions.ConnectionError:
@@ -86,7 +87,7 @@ class Session(requests.Session):
 
 
 def get_context(session):
-    r = session.get('https://www.handelsregister.de/rp_web/erweitertesuche/welcome.xhtml')
+    r = session.get('/rp_web/erweitertesuche/welcome.xhtml')
     soup = BeautifulSoup(r.content, 'html.parser')
 
     return {
@@ -111,18 +112,15 @@ def get_context(session):
 
 def _search(session, query):
     ctx = get_context(session)
-    r = session.post(
-        'https://www.handelsregister.de/rp_web/erweitertesuche/welcome.xhtml',
-        data={
-            'form': 'form',
-            'form:btnSuche': '',
-            'javax.faces.ViewState': ctx['view_state'],
-            'form:schlagwortOptionen': 1,
-            'form:aenlichLautendeSchlagwoerterBoolChkbox_input': 'on',
-            'form:ergebnisseProSeite_input': 100,
-            **query,
-        },
-    )
+    r = session.post('/rp_web/erweitertesuche/welcome.xhtml', data={
+        'form': 'form',
+        'form:btnSuche': '',
+        'javax.faces.ViewState': ctx['view_state'],
+        'form:schlagwortOptionen': 1,
+        'form:aenlichLautendeSchlagwoerterBoolChkbox_input': 'on',
+        'form:ergebnisseProSeite_input': 100,
+        **query,
+    })
     soup = BeautifulSoup(r.content, features='html.parser')
     return {
         'action': soup.select_one('[action]')['action'],
@@ -156,15 +154,12 @@ def get_xml(register, id, court):
         })
         field = data['items'][0]['si_field']
 
-        r = session.post(
-            f'https://www.handelsregister.de{data["action"]}',
-            data={
-                'ergebnissForm': 'ergebnissForm',
-                'javax.faces.ViewState': data['view_state'],
-                'property': 'Global.Dokumentart.SI',
-                field: field,
-            },
-        )
+        r = session.post(data['action'], data={
+            'ergebnissForm': 'ergebnissForm',
+            'javax.faces.ViewState': data['view_state'],
+            'property': 'Global.Dokumentart.SI',
+            field: field,
+        })
         return r.text
 
 
