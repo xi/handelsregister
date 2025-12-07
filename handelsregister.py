@@ -43,6 +43,7 @@ def _search(session, data):
             'form:btnSuche': '',
             'javax.faces.ViewState': view_state,
             'form:schlagwortOptionen': 1,
+            'form:ergebnisseProSeite_input': 100,
             **data,
         },
     )
