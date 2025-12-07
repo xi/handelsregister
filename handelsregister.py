@@ -38,8 +38,8 @@ def search(terms, register=''):
     )
     r.raise_for_status()
 
-    html = BeautifulSoup(r.text, features='lxml')
-    for item in html.select('[data-ri]'):
+    soup = BeautifulSoup(r.content, features='html.parser')
+    for item in soup.select('[data-ri]'):
         yield {
             'title': item.find(class_='marginLeft20').text,
             'id': item.find(class_='fontWeightBold').text.strip(),
