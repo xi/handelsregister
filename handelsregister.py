@@ -14,6 +14,25 @@ REGISTERS = {
     'GsR': 'Gesellschaftsregister',
 }
 
+STATES = [
+    'Baden-Württemberg',
+    'Bayern',
+    'Berlin',
+    'Brandenburg',
+    'Bremen',
+    'Hamburg',
+    'Hessen',
+    'Mecklenburg-Vorpommern',
+    'Niedersachsen',
+    'Nordrhein-Westfalen',
+    'Rheinland-Pfalz',
+    'Saarland',
+    'Sachsen',
+    'Sachsen-Anhalt',
+    'Schleswig-Holstein',
+    'Thüringen',
+]
+
 
 def parse_id(s, ctx):
     parts = s.strip().split()
@@ -113,11 +132,16 @@ def _search(session, query):
     }
 
 
-def search(terms, register=''):
+def search(*, terms=[], register='', id='', court='', type='', state=''):
     query = {
-        'form:schlagwoerter': terms,
+        'form:schlagwoerter': ' '.join(terms),
         'form:registerArt_input': register,
+        'form:registerNummer': id,
+        'form:registergericht_input': court,
+        'form:rechtsform_input': type,
     }
+    if state:
+        query[f'form:{state}_input'] = 'on',
     with Session() as session:
         data = _search(session, query)
     return data['items']
@@ -158,7 +182,12 @@ def get_parser():
     subparsers = parser.add_subparsers(required=True)
 
     parser_search = subparsers.add_parser('search', help='find entries in the registers')
-    parser_search.add_argument('terms')
+    parser_search.add_argument('terms', nargs='*')
+    parser_search.add_argument('--register', choices=REGISTERS)
+    parser_search.add_argument('--id')
+    parser_search.add_argument('--court')
+    parser_search.add_argument('--type')
+    parser_search.add_argument('--state', choices=STATES)
     parser_search.set_defaults(action='search')
 
     parser_xml = subparsers.add_parser('xml', help='get data for a specific ID')
@@ -177,9 +206,15 @@ def get_parser():
 if __name__ == '__main__':
     args = get_parser().parse_args()
     if args.action == 'search':
-        for item in search(args.terms):
-            print(item['title'])
-            print('\t', item['court'], item['reg'], item['id'])
+        for item in search(
+            terms=args.terms,
+            register=args.register,
+            id=args.id,
+            court=args.court,
+            type=args.type,
+            state=args.state,
+        ):
+            print(f'{item["reg"]} {item["id"]} {item["court"]}\t{item["title"]}')
     elif args.action == 'xml':
         print(get_xml(args.register, args.id, args.court))
     else:
