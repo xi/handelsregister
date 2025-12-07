@@ -1,10 +1,8 @@
 import argparse
-import sys
 import re
 
 import requests
 from bs4 import BeautifulSoup
-
 
 SEARCH_DEFAULTS = {
     'suchTyp': 'n',
@@ -97,6 +95,7 @@ def get_parser():
     parser_xml.set_defaults(action='xml')
 
     return parser
+
 
 if __name__ == '__main__':
     args = get_parser().parse_args()
