@@ -103,7 +103,7 @@ def get_context(session):
             if option['value']
         },
         'types': {
-            option['value']: option.text.strip()
+            int(option['value'], 10): option.text.strip()
             for option in soup.select(r'#form\:rechtsform_input option')
             if option['value']
         },
@@ -212,5 +212,5 @@ if __name__ == '__main__':
     elif args.action == 'xml':
         print(get_xml(args.register, args.id, args.court))
     else:
-        for key, value in get_list(args.key).items():
+        for key, value in sorted(get_list(args.key).items()):
             print(f'{key}\t{value}')
