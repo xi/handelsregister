@@ -1,10 +1,14 @@
 import argparse
 import asyncio
 import re
-import time
 
-import requests
+import aiohttp
 from bs4 import BeautifulSoup
+
+SESSION_DEFAULTS = {
+    'base_url': 'https://www.handelsregister.de',
+    'raise_for_status': True,
+}
 
 REGISTERS = {
     'HRA': 'Handelsregister Abteilung A',
@@ -33,6 +37,10 @@ STATES = [
     'Schleswig-Holstein',
     'Thüringen',
 ]
+
+
+def remove_none(d):
+    return {k: v for k, v in d.items() if v is not None}
 
 
 def parse_id(s, ctx):
@@ -70,26 +78,22 @@ def parse_item(item, ctx):
     }
 
 
-class Session(requests.Session):
-    def request(self, method, path, **kwargs):
-        url = f'https://www.handelsregister.de{path}'
-        retries = 2
-        while True:
-            try:
-                r = super().request(method, url, **kwargs)
-                r.raise_for_status()
-                return r
-            except requests.exceptions.ConnectionError:
-                if retries > 0:
-                    retries -= 1
-                    time.sleep(1)
-                else:
-                    raise
+async def retry(session, method, path, **kwargs):
+    retries = 2
+    while True:
+        try:
+            return await session.request(method, path, **kwargs)
+        except aiohttp.client_exceptions.ServerDisconnectedError:
+            if retries > 0:
+                retries -= 1
+                await asyncio.sleep(1)
+            else:
+                raise
 
 
 async def get_context(session):
-    r = session.get('/rp_web/erweitertesuche/welcome.xhtml')
-    soup = BeautifulSoup(r.content, 'html.parser')
+    r = await retry(session, 'GET', '/rp_web/erweitertesuche/welcome.xhtml')
+    soup = BeautifulSoup(await r.read(), 'html.parser')
 
     return {
         'view_state': soup.select_one('input[name="javax.faces.ViewState"]')['value'],
@@ -113,15 +117,15 @@ async def get_context(session):
 
 async def _search(session, query):
     ctx = await get_context(session)
-    r = session.post('/rp_web/erweitertesuche/welcome.xhtml', data={
+    r = await retry(session, 'POST', '/rp_web/erweitertesuche/welcome.xhtml', data={
         'form': 'form',
         'form:btnSuche': '',
         'javax.faces.ViewState': ctx['view_state'],
         'form:schlagwortOptionen': 1,
         'form:ergebnisseProSeite_input': 100,
-        **query,
+        **remove_none(query),
     })
-    soup = BeautifulSoup(r.content, features='html.parser')
+    soup = BeautifulSoup(await r.read(), features='html.parser')
     return {
         'action': soup.select_one('[action]')['action'],
         'view_state': soup.select_one('input[name="javax.faces.ViewState"]')['value'],
@@ -140,13 +144,13 @@ async def search(*, terms=[], register='', id='', court='', type='', state=''):
     }
     if state:
         query[f'form:{state}_input'] = 'on',
-    with Session() as session:
+    async with aiohttp.ClientSession(**SESSION_DEFAULTS) as session:
         data = await _search(session, query)
     return data['items']
 
 
 async def get_xml(register, id, court):
-    with Session() as session:
+    async with aiohttp.ClientSession(**SESSION_DEFAULTS) as session:
         data = await _search(session, {
             'form:registerArt_input': register,
             'form:registerNummer': id,
@@ -154,20 +158,20 @@ async def get_xml(register, id, court):
         })
         field = data['items'][0]['si_field']
 
-        r = session.post(data['action'], data={
+        r = await retry(session, 'POST', data['action'], data={
             'ergebnissForm': 'ergebnissForm',
             'javax.faces.ViewState': data['view_state'],
             'property': 'Global.Dokumentart.SI',
             field: field,
         })
-        return r.text
+        return await r.text()
 
 
 async def get_list(key):
     if key == 'registers':
         return REGISTERS
     else:
-        with Session() as session:
+        async with aiohttp.ClientSession(**SESSION_DEFAULTS) as session:
             ctx = await get_context(session)
         return ctx[key]
 
