@@ -1,4 +1,5 @@
 import argparse
+import asyncio
 import re
 import time
 
@@ -86,7 +87,7 @@ class Session(requests.Session):
                     raise
 
 
-def get_context(session):
+async def get_context(session):
     r = session.get('/rp_web/erweitertesuche/welcome.xhtml')
     soup = BeautifulSoup(r.content, 'html.parser')
 
@@ -110,8 +111,8 @@ def get_context(session):
     }
 
 
-def _search(session, query):
-    ctx = get_context(session)
+async def _search(session, query):
+    ctx = await get_context(session)
     r = session.post('/rp_web/erweitertesuche/welcome.xhtml', data={
         'form': 'form',
         'form:btnSuche': '',
@@ -129,7 +130,7 @@ def _search(session, query):
     }
 
 
-def search(*, terms=[], register='', id='', court='', type='', state=''):
+async def search(*, terms=[], register='', id='', court='', type='', state=''):
     query = {
         'form:schlagwoerter': ' '.join(terms),
         'form:registerArt_input': register,
@@ -140,13 +141,13 @@ def search(*, terms=[], register='', id='', court='', type='', state=''):
     if state:
         query[f'form:{state}_input'] = 'on',
     with Session() as session:
-        data = _search(session, query)
+        data = await _search(session, query)
     return data['items']
 
 
-def get_xml(register, id, court):
+async def get_xml(register, id, court):
     with Session() as session:
-        data = _search(session, {
+        data = await _search(session, {
             'form:registerArt_input': register,
             'form:registerNummer': id,
             'form:registergericht_input': court,
@@ -162,12 +163,12 @@ def get_xml(register, id, court):
         return r.text
 
 
-def get_list(key):
+async def get_list(key):
     if key == 'registers':
         return REGISTERS
     else:
         with Session() as session:
-            ctx = get_context(session)
+            ctx = await get_context(session)
         return ctx[key]
 
 
@@ -197,10 +198,10 @@ def get_parser():
     return parser
 
 
-if __name__ == '__main__':
+async def amain():
     args = get_parser().parse_args()
     if args.action == 'search':
-        for item in search(
+        for item in await search(
             terms=args.terms,
             register=args.register,
             id=args.id,
@@ -210,7 +211,12 @@ if __name__ == '__main__':
         ):
             print(f'{item["reg"]} {item["id"]} {item["court"]}\t{item["title"]}')
     elif args.action == 'xml':
-        print(get_xml(args.register, args.id, args.court))
+        print(await get_xml(args.register, args.id, args.court))
     else:
-        for key, value in sorted(get_list(args.key).items()):
+        result = await get_list(args.key)
+        for key, value in sorted(result.items()):
             print(f'{key}\t{value}')
+
+
+if __name__ == '__main__':
+    asyncio.run(amain())
