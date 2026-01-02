@@ -19,24 +19,24 @@ REGISTERS = {
     'GsR': 'Gesellschaftsregister',
 }
 
-STATES = [
-    'Baden-Württemberg',
-    'Bayern',
-    'Berlin',
-    'Brandenburg',
-    'Bremen',
-    'Hamburg',
-    'Hessen',
-    'Mecklenburg-Vorpommern',
-    'Niedersachsen',
-    'Nordrhein-Westfalen',
-    'Rheinland-Pfalz',
-    'Saarland',
-    'Sachsen',
-    'Sachsen-Anhalt',
-    'Schleswig-Holstein',
-    'Thüringen',
-]
+STATES = {
+    'BW': 'Baden-Württemberg',
+    'BY': 'Bayern',
+    'BE': 'Berlin',
+    'BB': 'Brandenburg',
+    'HB': 'Bremen',
+    'HH': 'Hamburg',
+    'HE': 'Hessen',
+    'MV': 'Mecklenburg-Vorpommern',
+    'NI': 'Niedersachsen',
+    'NW': 'Nordrhein-Westfalen',
+    'RP': 'Rheinland-Pfalz',
+    'SL': 'Saarland',
+    'SN': 'Sachsen',
+    'ST': 'Sachsen-Anhalt',
+    'SH': 'Schleswig-Holstein',
+    'TH': 'Thüringen',
+}
 
 
 def remove_none(d):
