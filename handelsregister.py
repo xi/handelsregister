@@ -4,6 +4,7 @@ import asyncio
 import aiohttp
 from bs4 import BeautifulSoup
 
+SEARCH_PATH = '/rp_web/erweitertesuche/welcome.xhtml'
 SESSION_DEFAULTS = {
     'base_url': 'https://www.handelsregister.de',
     'raise_for_status': True,
@@ -87,9 +88,21 @@ async def retry(session, method, path, **kwargs):
                 raise
 
 
-async def get_context(session):
-    r = await retry(session, 'GET', '/rp_web/erweitertesuche/welcome.xhtml')
+async def request_html(session, method, path, **kwargs):
+    r = await retry(session, method, path, **kwargs)
     soup = BeautifulSoup(await r.read(), 'html.parser')
+    if 'Error' in soup.select_one('title').text:
+        raise aiohttp.ClientResponseError(
+            r.request_info,
+            r.history,
+            status=500,
+            headers=r.headers,
+        )
+    return soup
+
+
+async def get_context(session):
+    soup = await request_html(session, 'GET', SEARCH_PATH)
 
     return {
         'view_state': soup.select_one('input[name="javax.faces.ViewState"]')['value'],
@@ -113,7 +126,7 @@ async def get_context(session):
 
 async def _search(session, query):
     ctx = await get_context(session)
-    r = await retry(session, 'POST', '/rp_web/erweitertesuche/welcome.xhtml', data={
+    soup = await request_html(session, 'POST', SEARCH_PATH, data={
         'form': 'form',
         'form:btnSuche': '',
         'javax.faces.ViewState': ctx['view_state'],
@@ -121,7 +134,6 @@ async def _search(session, query):
         'form:ergebnisseProSeite_input': 100,
         **remove_none(query),
     })
-    soup = BeautifulSoup(await r.read(), features='html.parser')
     return {
         'action': soup.select_one('[action]')['action'],
         'view_state': soup.select_one('input[name="javax.faces.ViewState"]')['value'],
