@@ -1,6 +1,5 @@
 import argparse
 import asyncio
-import re
 
 import aiohttp
 from bs4 import BeautifulSoup
@@ -60,14 +59,11 @@ def parse_id(s, ctx):
 
 
 def parse_si_field(item):
-    si_element = item.select_one('[onclick*="Dokumentart.SI"]')
+    si_element = item.find(string='SI')
     if si_element:
-        m = re.search(
-            r"ergebnissForm:selectedSuchErgebnisFormTable:[^']*",
-            si_element['onclick'],
-        )
-        if m:
-            return m[0]
+        si_element = si_element.find_parent('a')
+    if si_element:
+        return si_element.attrs['id']
 
 
 def parse_item(item, ctx):
