@@ -59,18 +59,21 @@ def parse_id(s, ctx):
     raise ValueError(s)
 
 
-def parse_si_field(item):
-    si_element = item.find(string='SI')
-    if si_element:
-        si_element = si_element.find_parent('a')
-    if si_element:
-        return si_element.attrs['id']
+def parse_field(item, key):
+    element = item.find(string=key)
+    if element:
+        element = element.find_parent('a')
+    if element:
+        return element.attrs['id']
 
 
 def parse_item(item, ctx):
     return {
         'title': item.select_one('.marginLeft20').text,
-        'si_field': parse_si_field(item),
+        'fields': {
+            key: parse_field(item, key)
+            for key in ['AD', 'CD', 'HD', 'DK', 'UT', 'VÖ', 'SI']
+        },
         **parse_id(item.select_one('.fontWeightBold').text, ctx)
     }
 
@@ -157,14 +160,14 @@ async def search(*, terms=[], register='', id='', court='', type='', state=''):
     return data['items']
 
 
-async def get_xml(register, id, court):
+async def get_field(register, id, court, key, text=True):
     async with aiohttp.ClientSession(**SESSION_DEFAULTS) as session:
         data = await _search(session, {
             'form:registerArt_input': register,
             'form:registerNummer': id,
             'form:registergericht_input': court,
         })
-        field = data['items'][0]['si_field']
+        field = data['items'][0]['fields'][key]
 
         r = await retry(session, 'POST', data['action'], data={
             'ergebnissForm': 'ergebnissForm',
@@ -172,7 +175,10 @@ async def get_xml(register, id, court):
             'property': 'Global.Dokumentart.SI',
             field: field,
         })
-        return await r.text()
+        if text:
+            return await r.text()
+        else:
+            return await r.read()
 
 
 async def get_list(key):
@@ -223,7 +229,7 @@ async def amain():
         ):
             print(f'{item["reg"]} {item["id"]} {item["court"]}\t{item["title"]}')
     elif args.action == 'xml':
-        print(await get_xml(args.register, args.id, args.court))
+        print(await get_field(args.register, args.id, args.court, 'SI'))
     else:
         result = await get_list(args.key)
         for key, value in sorted(result.items()):
